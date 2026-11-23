@@ -98,6 +98,9 @@ The 21.49 checkpoint was analyzed in
 The scales mostly shrank slightly. The gain comes from a small, uniform
 adjustment, not from a few hot groups.
 
+A 10x scale LR run moved the scales about ten times more but gave 21.53 PPL, so
+the 1x value is kept. See [`results/SCALE_LR_SWEEP.md`](results/SCALE_LR_SWEEP.md).
+
 ## What the pipeline does
 
 - **Ternary fake quantization** with a straight-through estimator.
