@@ -90,6 +90,8 @@ def quantize_model(args, model):
         scale_mode=args.scale_mode,
         learnable_scales=not args.fixed_scales,
         outlier_frac=args.outlier_frac,
+        outlier_group_frac=args.outlier_group_frac,
+        outlier_bits=args.outlier_bits,
         clip_percentile=args.clip_percentile,
         rotate=args.rotate,
         block=args.block,
@@ -149,7 +151,13 @@ def train(args):
             p.requires_grad = True
 
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(params, lr=args.lr, weight_decay=0.0)
+    scale_params = [p for n, p in model.named_parameters() if p.requires_grad and "log_scale" in n]
+    other_params = [p for n, p in model.named_parameters() if p.requires_grad and "log_scale" not in n]
+    scale_lr = args.scale_lr if args.scale_lr is not None else args.lr
+    groups = [{"params": other_params, "lr": args.lr}]
+    if scale_params:
+        groups.append({"params": scale_params, "lr": scale_lr})
+    optimizer = torch.optim.AdamW(groups, weight_decay=0.0)
     rng = random.Random(args.seed)
     model.train()
     started = time.time()
@@ -189,6 +197,8 @@ def train(args):
         "scale_mode": args.scale_mode,
         "learnable_scales": not args.fixed_scales,
         "outlier_frac": args.outlier_frac,
+        "outlier_group_frac": args.outlier_group_frac,
+        "outlier_bits": args.outlier_bits,
         "clip_percentile": args.clip_percentile,
         "rotate": args.rotate,
         "skip_layers": list(parse_skip_layers(args.skip_layers)),
@@ -196,6 +206,7 @@ def train(args):
         "batch_size": args.batch_size,
         "seq_len": args.seq_len,
         "lr": args.lr,
+        "scale_lr": scale_lr,
         "parameters": total,
         "trainable": trainable,
         "fp32_loss": fp32_loss,
@@ -244,6 +255,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seq-len", type=int, default=128)
     parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--scale-lr", type=float, default=None, help="separate LR for log_scale parameters")
     parser.add_argument("--log-every", type=int, default=50)
     parser.add_argument("--train-chars", type=int, default=2_000_000)
     parser.add_argument("--val-chars", type=int, default=500_000)
@@ -255,6 +267,8 @@ def main():
     parser.add_argument("--scale-mode", choices=["group", "row", "col"], default="group")
     parser.add_argument("--fixed-scales", action="store_true")
     parser.add_argument("--outlier-frac", type=float, default=0.001)
+    parser.add_argument("--outlier-group-frac", type=float, default=0.0)
+    parser.add_argument("--outlier-bits", type=int, default=2)
     parser.add_argument("--clip-percentile", type=float, default=0.999)
     parser.add_argument("--rotate", action="store_true")
     parser.add_argument("--block", type=int, default=32)
