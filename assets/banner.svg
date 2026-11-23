@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Ternary QAT for a 36M Mixtral MoE">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#131a33"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#818cf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="24" fill="url(#bg)"/>
+  <rect x="48" y="44" width="8" height="212" rx="4" fill="url(#accent)"/>
+  <text x="88" y="118" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="58" font-weight="700">Ternary QAT</text>
+  <text x="90" y="166" fill="#cbd5e1" font-family="Segoe UI, Arial, sans-serif" font-size="26">36M Mixtral MoE В· reproducible on a free T4</text>
+  <text x="90" y="222" fill="#94a3b8" font-family="Consolas, monospace" font-size="18">FP32 16.20 PPL  В·  ternary PTQ 3404.56  В·  QAT 21.78</text>
+  <g transform="translate(870 56)">
+    <g fill="#5eead4">
+      <rect x="0" y="0" width="22" height="22" rx="4"/>
+      <rect x="54" y="0" width="22" height="22" rx="4"/>
+      <rect x="108" y="0" width="22" height="22" rx="4"/>
+      <rect x="162" y="0" width="22" height="22" rx="4"/>
+      <rect x="216" y="0" width="22" height="22" rx="4"/>
+      <rect x="27" y="27" width="22" height="22" rx="4"/>
+      <rect x="135" y="27" width="22" height="22" rx="4"/>
+      <rect x="189" y="27" width="22" height="22" rx="4"/>
+    </g>
+    <g fill="#818cf8">
+      <rect x="27" y="54" width="22" height="22" rx="4"/>
+      <rect x="81" y="54" width="22" height="22" rx="4"/>
+      <rect x="135" y="54" width="22" height="22" rx="4"/>
+      <rect x="216" y="54" width="22" height="22" rx="4"/>
+      <rect x="0" y="81" width="22" height="22" rx="4"/>
+      <rect x="108" y="81" width="22" height="22" rx="4"/>
+      <rect x="162" y="81" width="22" height="22" rx="4"/>
+      <rect x="54" y="108" width="22" height="22" rx="4"/>
+      <rect x="135" y="108" width="22" height="22" rx="4"/>
+      <rect x="189" y="108" width="22" height="22" rx="4"/>
+    </g>
+    <g fill="#334155">
+      <rect x="81" y="0" width="22" height="22" rx="4"/>
+      <rect x="189" y="0" width="22" height="22" rx="4"/>
+      <rect x="81" y="27" width="22" height="22" rx="4"/>
+      <rect x="0" y="54" width="22" height="22" rx="4"/>
+      <rect x="189" y="54" width="22" height="22" rx="4"/>
+      <rect x="54" y="81" width="22" height="22" rx="4"/>
+      <rect x="216" y="81" width="22" height="22" rx="4"/>
+      <rect x="0" y="108" width="22" height="22" rx="4"/>
+      <rect x="108" y="108" width="22" height="22" rx="4"/>
+      <rect x="216" y="108" width="22" height="22" rx="4"/>
+    </g>
+  </g>
+</svg>
