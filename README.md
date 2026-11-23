@@ -84,6 +84,20 @@ flowchart LR
     F --> G[evaluate PPL]
 ```
 
+## Scale analysis
+
+The 21.49 checkpoint was analyzed in
+[`results/scale-analysis/`](results/scale-analysis/).
+
+- no collapsed groups
+- 85 to 87 percent of groups changed by less than 1 percent
+- p90 change about 1.1 percent, max about 3.7 percent
+- all layers moved by a similar amount
+- outlier groups did not collapse or move more than the rest
+
+The scales mostly shrank slightly. The gain comes from a small, uniform
+adjustment, not from a few hot groups.
+
 ## What the pipeline does
 
 - **Ternary fake quantization** with a straight-through estimator.
