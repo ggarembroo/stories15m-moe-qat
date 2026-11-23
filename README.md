@@ -32,8 +32,13 @@ numbers trained weights but not the scales. See
 [`results/BEST_RUN_2026-11-23.md`](results/BEST_RUN_2026-11-23.md).
 
 A matched FP32 control trained for the same 600 steps gives **19.56 PPL** over
-three seeds, with 0.44 seed standard deviation. The real QAT gap is about
-**1.9 PPL**, not 5.3. See [`results/FP32_CONTROL.md`](results/FP32_CONTROL.md).
+three seeds, with 0.44 seed standard deviation. Ternary QAT gives **21.44 PPL**
+over three seeds, with 0.16 seed standard deviation. The real QAT gap is about
+**1.88 PPL**, not 5.3. See [`results/FP32_CONTROL.md`](results/FP32_CONTROL.md)
+and [`results/SEED_VARIANCE.md`](results/SEED_VARIANCE.md).
+
+The 2-bit outlier result 21.42 is inside the QAT seed noise. Do not treat it as
+a real improvement.
 
 Per-layer audit: layers 0 and 5 are the most sensitive, the middle layers less.
 Quantization error is almost identical across layers, so the difference is a
