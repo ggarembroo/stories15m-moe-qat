@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="Ternary QAT for a 36M Mixtral MoE" width="100%">
+</p>
+
 # Ternary QAT for a 36M Mixtral MoE
 
 A small, reproducible testbed for low-bit quantization-aware training (QAT) on a
