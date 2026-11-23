@@ -59,6 +59,9 @@ class QATExperts(nn.Module):
         Apply block-Hadamard before quantization.
     block:
         Hadamard block size.
+    copy_weights:
+        Clone the source weights. Set false for PTQ or scale-only training to
+        avoid duplicating a full model in memory.
     """
 
     def __init__(
@@ -72,6 +75,7 @@ class QATExperts(nn.Module):
         clip_percentile: float = 1.0,
         rotate: bool = False,
         block: int = 32,
+        copy_weights: bool = True,
     ) -> None:
         super().__init__()
         if scale_mode not in {"group", "row", "col"}:
@@ -93,8 +97,12 @@ class QATExperts(nn.Module):
         self.rotate = rotate
         self.block = block
 
-        self.gate_up_proj = nn.Parameter(orig.gate_up_proj.detach().clone())
-        self.down_proj = nn.Parameter(orig.down_proj.detach().clone())
+        if copy_weights:
+            self.gate_up_proj = nn.Parameter(orig.gate_up_proj.detach().clone())
+            self.down_proj = nn.Parameter(orig.down_proj.detach().clone())
+        else:
+            self.gate_up_proj = orig.gate_up_proj
+            self.down_proj = orig.down_proj
 
         gate_scale = self._init_log_scale(self.gate_up_proj)
         down_scale = self._init_log_scale(self.down_proj)
@@ -118,11 +126,11 @@ class QATExperts(nn.Module):
             if cols % self.group:
                 raise ValueError(f"cols {cols} is not divisible by group {self.group}")
             blocks = wf.reshape(e, rows, cols // self.group, self.group)
-            scale = torch.quantile(blocks.abs(), p, dim=-1)
+            scale = blocks.abs().amax(dim=-1) if p >= 0.999999 else torch.quantile(blocks.abs(), p, dim=-1)
         elif self.scale_mode == "row":
-            scale = torch.quantile(wf.abs(), p, dim=2, keepdim=True)
+            scale = wf.abs().amax(dim=2, keepdim=True) if p >= 0.999999 else torch.quantile(wf.abs(), p, dim=2, keepdim=True)
         else:
-            scale = torch.quantile(wf.abs(), p, dim=1, keepdim=True)
+            scale = wf.abs().amax(dim=1, keepdim=True) if p >= 0.999999 else torch.quantile(wf.abs(), p, dim=1, keepdim=True)
         return torch.log(scale.clamp_min(1e-4))
 
     def _outlier_mask(self, w: torch.Tensor) -> torch.Tensor:
@@ -151,7 +159,10 @@ class QATExperts(nn.Module):
         q = q.reshape(e, rows, cols).to(w.dtype)
         if mask is not None:
             q = torch.where(mask, w, q)
-        return (w + (q - w).detach()).to(w.dtype)
+        # Straight-through estimator for both weights and scales.  The first
+        # residual gives the weight path; the second gives the scale path.
+        # Without the second term log_scale receives no gradient.
+        return (w + (q - w).detach() + (q - q.detach())).to(w.dtype)
 
     def forward(
         self,
@@ -202,6 +213,7 @@ def replace_experts(
     rotate: bool = False,
     block: int = 32,
     skip_layers: Sequence[int] = (),
+    copy_weights: bool = True,
 ) -> nn.Module:
     """Replace routed experts in every layer except ``skip_layers``."""
     skip = set(skip_layers)
@@ -218,6 +230,7 @@ def replace_experts(
             clip_percentile=clip_percentile,
             rotate=rotate,
             block=block,
+            copy_weights=copy_weights,
         )
     return model
 
