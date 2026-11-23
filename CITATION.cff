@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this pipeline, cite the repository."
+title: "Ternary QAT for a 36M Mixtral MoE"
+authors:
+  - family-names: "Pobozhii"
+    given-names: "Egor"
+    alias: "ggarembroo"
+repository-code: "https://github.com/ggarembroo/stories15m-moe-qat"
+license: MIT
+type: software
