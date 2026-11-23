@@ -48,3 +48,16 @@ python train_qat.py --preset best
 ```
 
 The script writes `runs/best/metrics.json` and `runs/best/history.csv`.
+
+## Reproduced 2026-11-23
+
+The best recipe was rerun on CPU.
+
+| stage | PPL |
+|---|---:|
+| FP32 | 16.1958 |
+| ternary PTQ + outlier + mixed | 349.5014 |
+| after 600 steps QAT | **21.8838** |
+
+The previous best was 21.78. The 0.1 difference is expected from seed, library
+version and hardware. Full report in `BEST_RUN_2026-11-23.md`.
