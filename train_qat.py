@@ -224,7 +224,6 @@ def train(args):
 
 def apply_preset(args):
     if args.preset == "fp32":
-        args.steps = 0
         return args
     if args.preset == "best":
         args.bits = 1
