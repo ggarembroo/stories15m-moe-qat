@@ -64,6 +64,28 @@ all-resident path to a genuinely smart 6 GB model. Risk: the pruning knee.
 at 6 GB, but a different model. Cost estimate from the agent: 12 to 15k
 H100-hours, 26 to 35k USD, 2 to 4 weeks on 32 H100.
 
+## Phone paging test, 2026-11-23
+
+Model: Qwen3.5-35B-A3B IQ2_XXS, 11 GB, llama-cli b10743, mmap, 4 threads.
+
+| metric | value |
+|---|---:|
+| PSS | 1.70 GB |
+| SwapPss | 4.33 GB |
+| RSS | 1.68 GB |
+| prompt | 0.5 tok/s |
+| generation | **0.1 tok/s** |
+| process killed | no |
+
+The process survived, but the kernel swapped 4.3 GB. Generation was 0.1 tok/s,
+unusable. Naive mmap does not cap the expert cache and does not implement
+O_DIRECT or `MADV_DONTNEED`. A stock llama.cpp build cannot deliver the 3 to
+4 tok/s estimate. That estimate needs a custom capped cache, which is a separate
+engineering project.
+
+The 5.77 GB Q3 mixed model runs at 6.3 tok/s because it fits in RAM. The 11 GB
+file does not.
+
 ## Recommendation
 
 Test path 1 first. It needs no training, uses the existing 35B weights, and keeps
