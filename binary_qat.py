@@ -98,6 +98,39 @@ def replace_experts(model, ternary_layers: set[int], outlier_frac: float, clip_p
     return model
 
 
+def routing_stats(model, chunks, device, num_experts: int) -> dict:
+    counts = {i: torch.zeros(num_experts, dtype=torch.long) for i in range(len(model.model.layers))}
+    hooks = []
+
+    def make_hook(layer_idx: int):
+        def hook(module, inputs, output):
+            indices = output[2]
+            counts[layer_idx] += torch.bincount(indices.flatten().cpu(), minlength=num_experts)
+        return hook
+
+    for i, layer in enumerate(model.model.layers):
+        hooks.append(layer.mlp.gate.register_forward_hook(make_hook(i)))
+    model.eval()
+    with torch.no_grad():
+        for chunk in chunks:
+            model(chunk.unsqueeze(0).to(device))
+    for hook in hooks:
+        hook.remove()
+
+    result = {}
+    for i, count in counts.items():
+        total = count.sum().item()
+        p = count.float() / max(total, 1)
+        entropy = float(-(p * torch.log(p.clamp_min(1e-12))).sum())
+        result[i] = {
+            "counts": count.tolist(),
+            "fractions": [round(float(x), 4) for x in p],
+            "entropy": round(entropy, 4),
+            "max_fraction": round(float(p.max()), 4),
+        }
+    return result
+
+
 def run(args):
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -124,8 +157,8 @@ def run(args):
     ptq_loss, ptq_ppl = evaluate(model, val_chunks, device, batch_size=8)
     print(f"binary ptq ppl {ptq_ppl:.4f}", flush=True)
 
-    for p in model.parameters():
-        p.requires_grad = True
+    for name, p in model.named_parameters():
+        p.requires_grad = not (args.freeze_router and ".gate." in name)
     params = [p for p in model.parameters() if p.requires_grad]
     scale_params = [p for n, p in model.named_parameters() if p.requires_grad and "log_scale" in n]
     other_params = [p for n, p in model.named_parameters() if p.requires_grad and "log_scale" not in n]
@@ -158,10 +191,12 @@ def run(args):
 
     after_loss, after_ppl = evaluate(model, val_chunks, device, batch_size=8)
     print(f"after ppl {after_ppl:.4f}", flush=True)
+    routing = routing_stats(model, val_chunks, device, model.config.num_local_experts)
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), out_dir / "binary_qat.pt")
+    (out_dir / "routing.json").write_text(json.dumps(routing, indent=2), encoding="utf-8")
     import csv
 
     with (out_dir / "history.csv").open("w", newline="", encoding="utf-8") as handle:
@@ -180,6 +215,8 @@ def run(args):
         "lr": args.lr,
         "scale_lr": args.scale_lr if args.scale_lr is not None else args.lr,
         "router_aux_coef": args.router_aux_coef,
+        "freeze_router": bool(args.freeze_router),
+        "routing": routing,
         "seed": args.seed,
         "parameters": total,
         "trainable": trainable,
@@ -206,6 +243,7 @@ def main():
     parser.add_argument("--outlier-frac", type=float, default=0.001)
     parser.add_argument("--clip-percentile", type=float, default=0.999)
     parser.add_argument("--router-aux-coef", type=float, default=0.0)
+    parser.add_argument("--freeze-router", action="store_true")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=600)
