@@ -26,6 +26,10 @@ quantization, learnable scales, outlier protection and mixed precision.
 Lower is better. PPL is measured on a held-out slice of TinyStories, 40 chunks of
 128 tokens. This is a testbed, not a claim about 7B or 35B models.
 
+The same recipe was reproduced on CPU on 2026-11-23 at **21.88 PPL**. The 0.1
+difference is expected from seed, library version and hardware. See
+[`results/BEST_RUN_2026-11-23.md`](results/BEST_RUN_2026-11-23.md).
+
 ## Why this model
 
 `ggml-org/stories15M_MOE` is a Mixtral-style model with:
@@ -144,6 +148,7 @@ qat.py                 # QAT expert module and replace_experts()
 train_qat.py           # training/eval CLI
 notebooks/             # Colab notebook
 results/QAT_RESULTS.md # raw experiment notes
+results/BEST_RUN_2026-11-23.md # reproduced best run
 ```
 
 ## Caveats
