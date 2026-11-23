@@ -49,6 +49,18 @@ quantization, and small enough to iterate on a laptop or a free Colab T4.
 
 The last row is the recommended recipe in this repo.
 
+## Pipeline
+
+```mermaid
+flowchart LR
+    A[FP32 experts] --> B[scale init]
+    B --> C[outlier mask]
+    C --> D[ternary quantize]
+    D --> E[STE forward]
+    E --> F[QAT 600 steps]
+    F --> G[evaluate PPL]
+```
+
 ## What the pipeline does
 
 - **Ternary fake quantization** with a straight-through estimator.
