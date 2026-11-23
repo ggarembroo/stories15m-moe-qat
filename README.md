@@ -31,6 +31,15 @@ numbers trained weights but not the scales. See
 [`docs/SCALE_GRADIENT_FIX.md`](docs/SCALE_GRADIENT_FIX.md) and
 [`results/BEST_RUN_2026-11-23.md`](results/BEST_RUN_2026-11-23.md).
 
+A matched FP32 control trained for the same 600 steps gives **19.56 PPL** over
+three seeds, with 0.44 seed standard deviation. The real QAT gap is about
+**1.9 PPL**, not 5.3. See [`results/FP32_CONTROL.md`](results/FP32_CONTROL.md).
+
+Per-layer audit: layers 0 and 5 are the most sensitive, the middle layers less.
+Quantization error is almost identical across layers, so the difference is a
+depth effect, not an error-magnitude effect. See
+[`results/LAYER_AUDIT.md`](results/LAYER_AUDIT.md).
+
 ## Why this model
 
 `ggml-org/stories15M_MOE` is a Mixtral-style model with:
@@ -57,6 +66,24 @@ quantization, and small enough to iterate on a laptop or a free Colab T4.
 | same + layers 0 and 5 kept FP32 | **21.49** | **1.33x** |
 
 The last row is the recommended recipe in this repo.
+
+## Bit budget reality check
+
+A 35B model in 6 GB needs **1.37 bits per weight** total.
+
+| format | bpw | 35B size |
+|---|---:|---:|
+| binary + per-channel scales | ~1.00 | 4.4 GB |
+| ternary, no group scales | 1.585 | 6.9 GB |
+| ternary + group-32 FP16 scales | 2.08 | 9.1 GB |
+| 2-bit + group-32 scales | 2.5 | 10.9 GB |
+
+The current ternary group-32 recipe is **2.08 bpw**, which is 9.1 GB at 35B. It
+does not fit 6 GB. The 36M testbed also keeps layers 0 and 5 in FP32, so its
+effective rate is about 6.7 bpw. It is a method testbed, not a shipping format.
+
+The 6 GB target needs binary experts or a different quantizer class, not more
+tuning of ternary group scales.
 
 ## Scaling to OLMoE
 
