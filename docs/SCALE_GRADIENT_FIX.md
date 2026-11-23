@@ -30,8 +30,8 @@ A minimal check confirms both gradients are non-zero.
 All runs before 2026-11-23 that claimed "learnable scales" trained only the
 weights. The scale values were initialized from calibration but stayed fixed.
 
-The 36M best recipe is being rerun with the fix. Until that finishes, treat the
-old 21.78 and 21.88 numbers as "weights trained, scales fixed".
+The 36M best recipe was rerun with the fix on 2026-11-23. PPL went from 21.88
+(weights only) to **21.49**. The scales do learn, and the gain is real.
 
 The fix is in `qat.py`. The old local scripts in `hadamard-moe` still have the
 old estimator and are not authoritative.
