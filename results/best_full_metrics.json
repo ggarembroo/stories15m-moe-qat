@@ -1,0 +1,29 @@
+{
+    "preset":  "best",
+    "model_id":  "ggml-org/stories15M_MOE",
+    "device":  "cpu",
+    "bits":  1,
+    "group":  32,
+    "scale_mode":  "group",
+    "learnable_scales":  true,
+    "outlier_frac":  0.001,
+    "clip_percentile":  0.999,
+    "rotate":  false,
+    "skip_layers":  [
+                        0,
+                        5
+                    ],
+    "steps":  600,
+    "batch_size":  4,
+    "seq_len":  128,
+    "lr":  0.0003,
+    "parameters":  36690336,
+    "trainable":  36690336,
+    "fp32_loss":  2.784749412536621,
+    "fp32_ppl":  16.195758914077537,
+    "ptq_loss":  5.856507682800293,
+    "ptq_ppl":  349.50144033665464,
+    "after_loss":  3.0857481479644777,
+    "after_ppl":  21.883833064295978,
+    "wall_time_s":  457.547043800354
+}
