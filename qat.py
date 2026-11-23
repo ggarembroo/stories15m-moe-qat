@@ -53,6 +53,11 @@ class QATExperts(nn.Module):
         If true, log-scales are trained.  Otherwise they are fixed buffers.
     outlier_frac:
         Fraction of largest-magnitude weights kept in FP32 (0 disables).
+    outlier_group_frac:
+        Fraction of groups with the largest max-abs weight quantized with
+        ``outlier_bits`` instead of ``bits`` (0 disables).
+    outlier_bits:
+        Bit width for outlier groups. Only 2 is implemented.
     clip_percentile:
         Percentile used for scale initialization (1.0 means max).
     rotate:
@@ -72,6 +77,8 @@ class QATExperts(nn.Module):
         scale_mode: str = "group",
         learnable_scales: bool = True,
         outlier_frac: float = 0.0,
+        outlier_group_frac: float = 0.0,
+        outlier_bits: int = 2,
         clip_percentile: float = 1.0,
         rotate: bool = False,
         block: int = 32,
@@ -84,6 +91,11 @@ class QATExperts(nn.Module):
             raise ValueError("group must be positive")
         if bits not in {1, 2, 4}:
             raise ValueError("bits must be 1, 2 or 4")
+        if outlier_group_frac > 0:
+            if outlier_bits != 2:
+                raise ValueError("only outlier_bits=2 is implemented")
+            if scale_mode != "group":
+                raise ValueError("outlier_group_frac requires scale_mode='group'")
 
         self.num_experts = orig.num_experts
         self.hidden_dim = orig.hidden_dim
@@ -94,6 +106,8 @@ class QATExperts(nn.Module):
         self.scale_mode = scale_mode
         self.clip_percentile = clip_percentile
         self.outlier_frac = outlier_frac
+        self.outlier_group_frac = outlier_group_frac
+        self.outlier_bits = outlier_bits
         self.rotate = rotate
         self.block = block
 
@@ -156,6 +170,15 @@ class QATExperts(nn.Module):
             qmax = 2 ** (self.bits - 1) - 1
             q = torch.clamp(torch.round(blocks / scale), -qmax - 1, qmax) * scale
 
+        if self.outlier_group_frac > 0:
+            max_abs = blocks.abs().amax(dim=-1, keepdim=True)
+            threshold = torch.quantile(max_abs.flatten().float(), 1.0 - self.outlier_group_frac)
+            outlier = max_abs >= threshold
+            scale2 = (max_abs / 1.5).clamp_min(1e-8)
+            q2 = (torch.floor(blocks / scale2) + 0.5) * scale2
+            q2 = torch.clamp(q2, -1.5 * scale2, 1.5 * scale2)
+            q = torch.where(outlier, q2, q)
+
         q = q.reshape(e, rows, cols).to(w.dtype)
         if mask is not None:
             q = torch.where(mask, w, q)
@@ -209,6 +232,8 @@ def replace_experts(
     scale_mode: str = "group",
     learnable_scales: bool = True,
     outlier_frac: float = 0.0,
+    outlier_group_frac: float = 0.0,
+    outlier_bits: int = 2,
     clip_percentile: float = 1.0,
     rotate: bool = False,
     block: int = 32,
@@ -227,6 +252,8 @@ def replace_experts(
             scale_mode=scale_mode,
             learnable_scales=learnable_scales,
             outlier_frac=outlier_frac,
+            outlier_group_frac=outlier_group_frac,
+            outlier_bits=outlier_bits,
             clip_percentile=clip_percentile,
             rotate=rotate,
             block=block,
