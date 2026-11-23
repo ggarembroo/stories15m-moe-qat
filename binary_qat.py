@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoTokenizer, MixtralForCausalLM
 
-from qat import count_parameters
+from qat import QATExperts, count_parameters
 from train_qat import evaluate, make_chunks
 
 
@@ -74,9 +74,27 @@ class BinaryExperts(nn.Module):
         return final
 
 
-def replace_all_experts(model):
-    for layer in model.model.layers:
-        layer.mlp.experts = BinaryExperts(layer.mlp.experts)
+def parse_layers(value: str) -> set[int]:
+    if not value:
+        return set()
+    return {int(x) for x in value.split(",") if x.strip()}
+
+
+def replace_experts(model, ternary_layers: set[int], outlier_frac: float, clip_percentile: float):
+    for i, layer in enumerate(model.model.layers):
+        if i in ternary_layers:
+            layer.mlp.experts = QATExperts(
+                layer.mlp.experts,
+                bits=1,
+                group=32,
+                scale_mode="group",
+                learnable_scales=True,
+                outlier_frac=outlier_frac,
+                clip_percentile=clip_percentile,
+                copy_weights=True,
+            )
+        else:
+            layer.mlp.experts = BinaryExperts(layer.mlp.experts)
     return model
 
 
@@ -97,10 +115,12 @@ def run(args):
     )
 
     model = MixtralForCausalLM.from_pretrained(args.model_id, torch_dtype=torch.float32).to(device)
+    model.config.output_router_logits = args.router_aux_coef > 0
     fp32_loss, fp32_ppl = evaluate(model, val_chunks, device, batch_size=8)
     print(f"fp32 ppl {fp32_ppl:.4f}", flush=True)
 
-    replace_all_experts(model)
+    ternary_layers = parse_layers(args.ternary_layers)
+    replace_experts(model, ternary_layers, args.outlier_frac, args.clip_percentile)
     ptq_loss, ptq_ppl = evaluate(model, val_chunks, device, batch_size=8)
     print(f"binary ptq ppl {ptq_ppl:.4f}", flush=True)
 
@@ -123,14 +143,18 @@ def run(args):
     for step in range(args.steps):
         ids = torch.stack([train_chunks[rng.randrange(len(train_chunks))] for _ in range(args.batch_size)]).to(device)
         out = model(ids, labels=ids)
+        loss = out.loss
+        aux = getattr(out, "aux_loss", None)
+        if args.router_aux_coef > 0 and aux is not None:
+            loss = loss + args.router_aux_coef * aux
         optimizer.zero_grad(set_to_none=True)
-        out.loss.backward()
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(params, 1.0)
         optimizer.step()
         elapsed = time.time() - started
-        history.append({"step": step + 1, "loss": out.loss.item(), "elapsed_s": elapsed})
+        history.append({"step": step + 1, "loss": loss.item(), "elapsed_s": elapsed})
         if (step + 1) % args.log_every == 0:
-            print(f"step {step + 1}/{args.steps} loss {out.loss.item():.5f} {elapsed:.1f}s", flush=True)
+            print(f"step {step + 1}/{args.steps} loss {loss.item():.5f} {elapsed:.1f}s", flush=True)
 
     after_loss, after_ppl = evaluate(model, val_chunks, device, batch_size=8)
     print(f"after ppl {after_ppl:.4f}", flush=True)
@@ -146,7 +170,8 @@ def run(args):
         writer.writerows(history)
 
     metrics = {
-        "format": "binary_experts",
+        "format": "mixed_binary_ternary" if ternary_layers else "binary_experts",
+        "ternary_layers": sorted(ternary_layers),
         "model_id": args.model_id,
         "device": str(device),
         "steps": args.steps,
@@ -154,6 +179,7 @@ def run(args):
         "seq_len": args.seq_len,
         "lr": args.lr,
         "scale_lr": args.scale_lr if args.scale_lr is not None else args.lr,
+        "router_aux_coef": args.router_aux_coef,
         "seed": args.seed,
         "parameters": total,
         "trainable": trainable,
@@ -161,7 +187,11 @@ def run(args):
         "ptq_ppl": ptq_ppl,
         "after_ppl": after_ppl,
         "wall_time_s": time.time() - started,
-        "approx_bpw": 1.0 + 16.0 / 288.0,
+        "approx_bpw": (
+            len(ternary_layers) * 2.08
+            + (len(model.model.layers) - len(ternary_layers)) * 1.055
+        )
+        / len(model.model.layers),
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(json.dumps(metrics, indent=2), flush=True)
@@ -172,6 +202,10 @@ def main():
     parser.add_argument("--model-id", default=r"C:\kruko\models\stories15m-moe")
     parser.add_argument("--corpus", default=r"C:\kruko\models\stories15m-moe\TinyStories-valid.txt")
     parser.add_argument("--output-dir", default="runs/binary-s42")
+    parser.add_argument("--ternary-layers", default="", help="comma-separated layers kept ternary")
+    parser.add_argument("--outlier-frac", type=float, default=0.001)
+    parser.add_argument("--clip-percentile", type=float, default=0.999)
+    parser.add_argument("--router-aux-coef", type=float, default=0.0)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=int, default=600)
