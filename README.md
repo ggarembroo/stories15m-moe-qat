@@ -21,13 +21,14 @@ quantization, learnable scales, outlier protection and mixed precision.
 | `stories15M_MOE` | 36M | FP32 | **16.20** |
 | same | 36M | ternary PTQ | 3404.56 |
 | same | 36M | ternary QAT, all params | 24.19 |
-| same | 36M | ternary QAT + outlier + calibration + mixed precision | **21.78** |
+| same | 36M | ternary QAT + outlier + calibration + mixed precision | **21.49** |
 
 Lower is better. PPL is measured on a held-out slice of TinyStories, 40 chunks of
 128 tokens. This is a testbed, not a claim about 7B or 35B models.
 
-The same recipe was reproduced on CPU on 2026-11-23 at **21.88 PPL**. The 0.1
-difference is expected from seed, library version and hardware. See
+The 2026-11-23 run includes the scale-gradient fix. The earlier 21.78 and 21.88
+numbers trained weights but not the scales. See
+[`docs/SCALE_GRADIENT_FIX.md`](docs/SCALE_GRADIENT_FIX.md) and
 [`results/BEST_RUN_2026-11-23.md`](results/BEST_RUN_2026-11-23.md).
 
 ## Why this model
@@ -53,9 +54,23 @@ quantization, and small enough to iterate on a laptop or a free Colab T4.
 | QAT all params, learnable scales, 600 steps | 24.19 | 1.49x |
 | QAT all params, learnable scales + block-32 Hadamard | 25.18 | 1.55x |
 | QAT all params + outlier 0.1% + p99.9 calibration | 21.95 | 1.35x |
-| same + layers 0 and 5 kept FP32 | **21.78** | **1.34x** |
+| same + layers 0 and 5 kept FP32 | **21.49** | **1.33x** |
 
 The last row is the recommended recipe in this repo.
+
+## Scaling to OLMoE
+
+The same QAT module works with `OlmoeExperts`. Full OLMoE-1B-7B QAT does not fit
+a free Colab T4: 13.8 GB weights, 13.8 GB gradients and 55.3 GB Adam state are
+about 83 GB before activations.
+
+A 2-layer slice is **not** a valid language model and its PPL is meaningless.
+It is only an architecture smoke test.
+
+`olmoe_partial_qat.py` keeps all 16 layers and quantizes only selected layers.
+That gives a valid PPL and fits 24 GB when two layers are selected. See
+[`docs/OLMOE_QAT_PLAN.md`](docs/OLMOE_QAT_PLAN.md) for the memory math and the
+80 GB / 4x H100 options.
 
 ## Pipeline
 
@@ -145,8 +160,11 @@ runs/best/
 
 ```text
 qat.py                 # QAT expert module and replace_experts()
-train_qat.py           # training/eval CLI
+train_qat.py           # training/eval CLI for the 36M model
+olmoe_slice_smoke.py   # OLMoE architecture smoke test, not a valid LM
+olmoe_partial_qat.py   # valid partial-layer QAT, all 16 layers in forward
 notebooks/             # Colab notebook
+docs/                  # OLMoE plan and notes
 results/QAT_RESULTS.md # raw experiment notes
 results/BEST_RUN_2026-11-23.md # reproduced best run
 ```
